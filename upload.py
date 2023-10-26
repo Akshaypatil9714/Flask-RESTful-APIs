@@ -1,4 +1,3 @@
-# upload.py
 from flask import Blueprint, request, jsonify, send_from_directory
 from flask_jwt_extended import jwt_required
 from werkzeug.utils import secure_filename
