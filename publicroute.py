@@ -1,9 +1,8 @@
 from flask import Blueprint, jsonify
+from models import User
 
 fitness_bp = Blueprint('fitness', __name__)
 
-# Sample fitness website content
-registered_users = 1000  # Replace with the actual number of registered users
 
 # Sample fitness articles
 fitness_articles = [
@@ -26,7 +25,10 @@ fitness_articles = [
 
 @fitness_bp.get("/registered-users")
 def get_registered_users():
-    return jsonify({"registered_users": registered_users}), 200
+    # Query the SQLite database to count the registered users
+    registered_users_count = User.query.count()
+
+    return jsonify({"registered_users": registered_users_count}), 200
 
 @fitness_bp.get("/fitness-articles")
 def get_fitness_articles():
