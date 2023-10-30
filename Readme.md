@@ -1,8 +1,8 @@
 Team member's name:
 
-  Akshay Patil
+- Akshay Patil
   
-  Padmini RK
+- Padmini RK
   
 Installations
 
