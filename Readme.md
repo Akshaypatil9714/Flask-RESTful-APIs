@@ -1,28 +1,30 @@
-Team member's name:
+A repo to demonstrate implementation of JWT Authentication, CURD operations and file upload for a health and fitness application using Flask REST APIs.
 
-- Akshay Patil
-  
-- Padmini RK
-  
-Installations
+Team members:
 
-1. VSCode
-2. Python
+Padmini Ramapura Keshavkumar
+Akshay Patil
+Download and Install
 
-Download SQLite3 and DB browser for SQLite
-
-Virtual environment creation and activation
-
-With maintaining more projects, you will have to work with different version of py and its libraries. In order to not affect other projects its important to create a virtual environment for each proejct
+VSCode
+Python
+SQLite
+DB Brwoser
+Create a virtual environment and activate it.
 
 To do that:
 
-1. Create a directory and navigate to new directory
-2. Then py -3 -m venv .venv
-3. Activate the environment - `.venv\Scripts\activate` or check for mac/bash
+Create a directory and navigate to that new directory
+Then submit the command py -3 -m venv .venv
+Activate the environment - .venv\Scripts\activate on windows
+For requirement installation do the following
 
-Requirement Installation
+pip install -r requirements.txt
 
-`pip install` -r requirements.txt
+Create the database by running
 
-To run application - flask run
+flask shell
+
+In the interactive shell run the following Python 3.11.1 (tags/v3.11.1:a7a450f, Dec 6 2022, 19:58:39) [MSC v.1934 64 bit (AMD64)] on win32 App: main Instance: from models import User db.create_all()
+
+To run application use flask run
