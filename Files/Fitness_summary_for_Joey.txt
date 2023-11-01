@@ -1,0 +1,318 @@
+main.py
+"from flask import Flask, jsonify 
+from werkzeug.exceptions import BadRequest, NotFound, MethodNotAllowed, InternalServerError
+from extensions import db, jwt
+from auth import auth_bp
+from users import user_bp
+from fitnessFileUpload import file_upload_bp
+from publicroute import fitness_bp
+
+def create_app():
+    app=Flask(__name__)
+    app.config["SQLALCHEMY_DATABASE_URI"]="sqlite:///db.sqlite3"
+    app.config['JWT_SECRET_KEY']="4c5e63801c81b198510eecf4"
+    app.config['MAX_CONTENT_LENGTH']= 1 * 1024 * 1024
+
+    db.init_app(app)
+    jwt.init_app(app)
+
+    app.register_blueprint(auth_bp, url_prefix='/auth')
+    app.register_blueprint(user_bp, url_prefix='/users')
+    app.register_blueprint(file_upload_bp, url_prefix='/fitnessData')
+    app.register_blueprint(fitness_bp, url_prefix='/fitness')
+
+    @jwt.expired_token_loader
+    def expired_token_callback(jwt_header, jwt_data):
+        return jsonify({"message": "Token has expired", "error": "token_expired"}), 401
+
+    @jwt.invalid_token_loader
+    def invalid_token_callback(error):
+        return (
+            jsonify(
+                {"message": "Verification failed", "error": "invalid_token"}
+            ),
+            401,
+        )
+
+    @jwt.unauthorized_loader
+    def missing_token_callback(error):
+        return (
+            jsonify(
+                {
+                    "message": "Request does not contain valid token",
+                    "error": "authorization_header",
+                }
+            ),
+            401,
+        )
+
+    @app.errorhandler(BadRequest)
+    def handle_bad_request(e):
+         return (
+            jsonify(
+                {
+                    "message": "It is a bad request",
+                    "error": "bad_request",
+                }
+            ),
+            400,
+        )
+
+    @app.errorhandler(NotFound)
+    def handle_resource_not_exist(e):
+         return (
+            jsonify(
+                {
+                    "message": "Requested resource does not exists!",
+                    "error": "resource_not_exist",
+                }
+            ),
+            404,
+        )
+
+    @app.errorhandler(MethodNotAllowed)
+    def handle_method_not_allowed(e):
+         return (
+            jsonify(
+                {
+                    "message": "The method is not allowed!",
+                    "error": "method_not_allowed",
+                }
+            ),
+            405,
+        )
+
+    @app.errorhandler(InternalServerError)
+    def handle_internal_server_error(e):
+        return (
+            jsonify(
+                {
+                    "message": "An internal server error occured!",
+                    "error": "server_error",
+                }
+            ),
+            500,
+        )
+        
+
+    
+
+    return app"
+auth.py
+"from flask import Blueprint, jsonify, request
+from flask_jwt_extended import (
+    create_access_token,
+    create_refresh_token,
+    #jwt_required,
+    #get_jwt,
+    #current_user,
+    #get_jwt_identity,
+)
+from models import User
+
+auth_bp = Blueprint('auth', __name__)
+
+@auth_bp.post("/register")
+def register_user():
+    data = request.get_json()
+
+    existing_user = User.get_user_by_username(username=data.get("username"))
+
+    if existing_user is not None:
+        return jsonify({"error": "User already exists"}), 409
+
+    new_user = User(username=data.get("username"), email=data.get("email"))
+
+    new_user.set_password(password=data.get("password"))
+
+    new_user.save()
+
+    return jsonify({"message": "User created"}), 201
+
+@auth_bp.post("/login")
+def login_user():
+    data = request.get_json()
+
+    user = User.get_user_by_username(username=data.get("username"))
+
+    if user and (user.check_password(password=data.get("password"))):
+        access_token = create_access_token(identity=user.username)
+        refresh_token = create_refresh_token(identity=user.username)
+
+        return (
+            jsonify(
+                {
+                    "message": "Logged In ",
+                    "tokens": {"access": access_token, "refresh": refresh_token},
+                }
+            ),
+            200,
+        )
+    return jsonify({"error": "Invalid username or password"}), 400"
+extensions.py
+"from flask_sqlalchemy import SQLAlchemy 
+from flask_jwt_extended import JWTManager
+
+db = SQLAlchemy()
+jwt = JWTManager()"
+fitnessFileUpload
+"import os
+from flask import Blueprint, flash, jsonify, request
+from flask_jwt_extended import jwt_required
+from werkzeug.utils import secure_filename
+from werkzeug.exceptions import RequestEntityTooLarge
+
+file_upload_bp = Blueprint('fitnessData', __name__)
+
+ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg'}
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@file_upload_bp.post("/fileUpload")
+@jwt_required()
+def upload_fitness_file():
+    try:
+        if 'file' not in request.files:
+            return jsonify({
+                "error": "Missing file, choose a file to upload"
+            }, 400)
+        fitness_file = request.files['file']
+        if fitness_file.filename == '':
+            flash('No selected file')
+            return jsonify({
+                "error": "Missing file, choose a file to upload"
+            }, 400)
+        file_type_accepted = allowed_file(fitness_file.filename)
+
+        if not file_type_accepted:
+            return jsonify({
+                "error": "File type not allowed"
+            }, 400 )
+
+
+        if fitness_file and file_type_accepted:
+            filename = secure_filename(fitness_file.filename)
+            fitness_file.save(os.path.join('fitnessFiles/', filename))
+            return jsonify({
+                "message": "Fitness file uploaded"
+            }, 200)
+    except RequestEntityTooLarge:
+        return jsonify({
+                "error": "File is larger than 1MB"
+            }, 400)
+
+        
+
+"
+models.py
+"from extensions import db
+from uuid import uuid4
+from werkzeug.security import generate_password_hash, check_password_hash
+
+
+class User(db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.String(), primary_key=True, default=str(uuid4()))
+    username = db.Column(db.String(), nullable=False)
+    email = db.Column(db.String(), nullable=False)
+    password = db.Column(db.Text())
+
+    def __repr__(self):
+        return f"<User {self.username}>"
+
+    def set_password(self, password):
+        self.password = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password, password)
+
+    @classmethod
+    def get_user_by_username(cls, username):
+        return cls.query.filter_by(username=username).first()
+
+    def save(self):
+        db.session.add(self)
+        db.session.commit()
+    
+    def delete(self):
+        db.session.delete(self)
+        db.session.commit()"
+schemas.py
+"from marshmallow import fields, Schema
+
+
+class UserSchema(Schema):
+    id = fields.String()
+    username = fields.String()
+    email = fields.String()"
+users.py
+"from flask import Blueprint, request, jsonify
+from flask_jwt_extended import jwt_required, get_jwt
+from models import User
+from schemas import UserSchema
+
+
+user_bp = Blueprint("users", __name__)
+
+
+@user_bp.get("/all")
+@jwt_required()
+def get_all_users():
+   # claims = get_jwt()
+
+    #if claims.get("is_staff") == True:
+        page = request.args.get("page", default=1, type=int)
+
+        per_page = request.args.get("per_page", default=3, type=int)
+
+        users = User.query.paginate(page=page, per_page=per_page)
+
+        result = UserSchema().dump(users, many=True)
+
+        return (
+            jsonify(
+                {
+                    "users": result,
+                }
+            ),
+            200,
+        )
+
+   # return jsonify({"message": "You are not authorized to access this"}), 401"
+publicroute.py
+"from flask import Blueprint, jsonify
+
+fitness_bp = Blueprint('fitness', __name__)
+
+# Sample fitness website content
+registered_users = 1000  # Replace with the actual number of registered users
+
+# Sample fitness articles
+fitness_articles = [
+    {
+        "id": 1,
+        "title": "Get Started with Cardio",
+        "content": "Cardio workouts are great for improving cardiovascular health.",
+    },
+    {
+        "id": 2,
+        "title": "Strength Training Tips",
+        "content": "Learn how to build strength with weightlifting exercises.",
+    },
+    {
+        "id": 3,
+        "title": "Healthy Eating Habits",
+        "content": "Discover the importance of a balanced diet for your fitness journey.",
+    },
+]
+
+@fitness_bp.get("/registered-users")
+def get_registered_users():
+    return jsonify({"registered_users": registered_users}), 200
+
+@fitness_bp.get("/fitness-articles")
+def get_fitness_articles():
+    return jsonify(fitness_articles), 200"
+how to run the code and test on postman
